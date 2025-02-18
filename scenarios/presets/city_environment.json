@@ -1,0 +1,23 @@
+[
+  {
+    "id": "building_01",
+    "type": "CUBE",
+    "position": [10.0, 5.0, 0.0],
+    "feature": {
+      "size": [20.0, 15.0, 50.0]
+    }
+  },
+  {
+    "id": "oak_tree_01",
+    "type": "TREE",
+    "position": [30.0, -5.0, 0.0],
+    "feature": {
+      "trunkRadius": 0.5,
+      "canopySize": 6.0,
+      "model": "models/tree.glb"
+    },
+    "metadata": {
+      "species": "Oak"
+    }
+  }
+]

@@ -41,8 +41,10 @@ def _initialize_grid(bounds, obstacles, drone_size, resolution):
         x, y, z = pos
         w, h, d = size
         # 计算膨胀后的三维边界
-        x_min = x - drone_half_w
-        x_max = x + w + drone_half_w
+        obs_x_min = x - w / 2
+        obs_x_max = x + w / 2
+        x_min = obs_x_min - drone_half_w
+        x_max = obs_x_max + drone_half_w
         y_min = y - drone_half_h  # 补充y轴
         y_max = y + h + drone_half_h
         z_min = z - drone_half_d  # 补充z轴
