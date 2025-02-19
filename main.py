@@ -5,6 +5,7 @@ import uvicorn
 import threading
 import time
 
+from starlette.middleware.cors import CORSMiddleware
 from starlette.testclient import TestClient
 
 from services.path_planner import plan_path
@@ -16,6 +17,19 @@ GRID_RESOLUTION = 0.5  # 默认网格分辨率0.5米（平衡精度与计算效�
 OBSTACLE_BUFFER = 1.5  # 障碍物膨胀系数（1.5倍无人机尺寸确保安全距离）
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=[
+        "x-request-time",  # 显式允许自定义头
+        "content-type",    # 常规头仍需列出
+        "authorization",
+        "*"                # 保留通配符确保兼容
+    ],
+)
 
 # 无人机状态存储
 drone_status = {
@@ -60,6 +74,9 @@ def calculate_trajectory(start, target, speed):
         for i, point in enumerate(path)
     ]
 
+@app.options("/{path:path}")
+async def options_handler():
+    return {"status": "ok"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -105,6 +122,25 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"通信错误: {str(e)}")
 
+@app.get("/test")
+async def test_interface():
+    """测试接口，返回基本状态信息"""
+    return {
+        "status": "success",
+        "timestamp": datetime.now().isoformat(),
+        "service_info": {
+            "service": "Drone Navigation Service",
+            "version": "1.0.0",
+            "status": "running",
+            "drone_status": {
+                "current_position": drone_status["current_position"],
+                "target_position": drone_status["target"],
+                "speed": drone_status["speed"],
+                "altitude": drone_status["altitude"],
+                "path_points": len(drone_status["path"])
+            }
+        }
+    }
 
 def simulate_client():
     """改进的客户端模拟"""
@@ -136,15 +172,11 @@ def simulate_client():
 
 
 if __name__ == "__main__":
-    # 启动服务器
-    server_thread = threading.Thread(
-        target=uvicorn.run,
-        args=(app,),
-        kwargs={"host": "0.0.0.0", "port": 8001},
-        daemon=True
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8001,
+        ws='websockets',
+        reload=True,
+        headers=[("Server", "DroneControl/1.0.0")]  # 添加自定义响应头
     )
-    server_thread.start()
-    time.sleep(1)
-
-    # 运行客户端
-    simulate_client()
