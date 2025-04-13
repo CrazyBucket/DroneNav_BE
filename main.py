@@ -142,6 +142,26 @@ async def test_interface():
         }
     }
 
+@app.get("/getScene")
+async def get_scene():
+    """获取城市场景配置"""
+    import json
+    from pathlib import Path
+    
+    scene_path = Path(__file__).parent / "scenarios/presets/city_environment.json"
+    try:
+        with open(scene_path, "r", encoding="utf-8") as f:
+            scene_data = json.load(f)
+        return {
+            "status": "success",
+            "scene": scene_data
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"无法读取场景文件: {str(e)}"
+        }
+
 def simulate_client():
     """改进的客户端模拟"""
     with TestClient(app).websocket_connect("/ws") as ws:
