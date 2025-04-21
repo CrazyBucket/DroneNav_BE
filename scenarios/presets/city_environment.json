@@ -3,27 +3,6 @@
   "coordinate_system": "ENU",
   "obstacles": [
     {
-      "id": "cube_001",
-      "type": "CUBE",
-      "position": {
-        "x": 10.5,
-        "y": 2.3,
-        "z": 0.0
-      },
-      "rotation": {
-        "pitch": 0.0,
-        "yaw": 45.0,
-        "roll": 0.0
-      },
-      "metadata": {
-        "material": "concrete"
-      },
-      "feature": {
-        "size": [5.0, 3.0, 4.0],
-        "color": "#FF0000"
-      }
-    },
-    {
       "id": "tree_1",
       "type": "TREE",
       "position": {
@@ -42,6 +21,31 @@
       "feature": {
         "model": "tree_1",
         "scale": 0.01
+      }
+    },
+    {
+      "id": "office_building_1",
+      "type": "BUILDING",
+      "position": {
+        "x": -20.0,
+        "y": 0.0,
+        "z": 5.0
+      },
+      "rotation": {
+        "pitch": 0.0,
+        "yaw": 0.0,
+        "roll": 0.0
+      },
+      "metadata": {
+        "purpose": "office",
+        "lighting": true
+      },
+      "feature": {
+        "footprint": [30.0, 20.0],
+        "height": 45.0,
+        "style": {
+          "main_texture": "building_2"
+        }
       }
     }
   ]
