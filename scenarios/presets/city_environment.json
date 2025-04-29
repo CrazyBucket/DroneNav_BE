@@ -7,8 +7,8 @@
       "type": "TREE",
       "position": {
         "x": 15.0,
-        "y": 0,
-        "z": 10
+        "y": 10,
+        "z": 0
       },
       "rotation": {
         "pitch": 0.0,
@@ -20,7 +20,7 @@
       },
       "feature": {
         "model": "tree_1",
-        "scale": 0.01
+        "scale": 0.001
       }
     },
     {
@@ -28,8 +28,8 @@
       "type": "BUILDING",
       "position": {
         "x": -20.0,
-        "y": 0.0,
-        "z": 5.0
+        "y": 5.0,
+        "z": 0
       },
       "rotation": {
         "pitch": 0.0,
@@ -41,10 +41,35 @@
         "lighting": true
       },
       "feature": {
-        "footprint": [30.0, 20.0],
-        "height": 45.0,
+        "footprint": [10.0, 10.0],
+        "height": 20.0,
         "style": {
           "main_texture": "building_2"
+        }
+      }
+    },
+    {
+      "id": "office_building_2",
+      "type": "BUILDING",
+      "position": {
+        "x": 20.0,
+        "y": 5.0,
+        "z": 0
+      },
+      "rotation": {
+        "pitch": 0.0,
+        "yaw": 0.0,
+        "roll": 0.0
+      },
+      "metadata": {
+        "purpose": "office",
+        "lighting": true
+      },
+      "feature": {
+        "footprint": [10.0, 10.0],
+        "height": 20.0,
+        "style": {
+          "main_texture": "building_1"
         }
       }
     }

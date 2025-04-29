@@ -9,10 +9,13 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.testclient import TestClient
 
 from services.path_planner import plan_path
+from routers.http import router as http_router
+from models.drone_status import drone_status
+
 
 TRAJECTORY_MIN_POINTS = 50  # 最小路径点数
 UPDATE_INTERVAL = 0.1       # 更新间隔（秒）
-DRONE_PHYSICAL_SIZE = (0.30, 0.40, 0.10)  # 默认尺寸：Mavic 3 Pro展开尺寸34cm×38cm×12cm
+DRONE_PHYSICAL_SIZE = (0.25, 0.20, 0.06)  # 无人机尺寸
 GRID_RESOLUTION = 0.5  # 默认网格分辨率0.5米（平衡精度与计算效率）
 OBSTACLE_BUFFER = 1.5  # 障碍物膨胀系数（1.5倍无人机尺寸确保安全距离）
 
@@ -31,6 +34,7 @@ app.add_middleware(
     ],
 )
 
+app.include_router(http_router)
 # 无人机状态存储
 drone_status = {
     "current_position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -74,9 +78,6 @@ def calculate_trajectory(start, target, speed):
         for i, point in enumerate(path)
     ]
 
-@app.options("/{path:path}")
-async def options_handler():
-    return {"status": "ok"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -122,45 +123,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"通信错误: {str(e)}")
 
-@app.get("/test")
-async def test_interface():
-    """测试接口，返回基本状态信息"""
-    return {
-        "status": "success",
-        "timestamp": datetime.now().isoformat(),
-        "service_info": {
-            "service": "Drone Navigation Service",
-            "version": "1.0.0",
-            "status": "running",
-            "drone_status": {
-                "current_position": drone_status["current_position"],
-                "target_position": drone_status["target"],
-                "speed": drone_status["speed"],
-                "altitude": drone_status["altitude"],
-                "path_points": len(drone_status["path"])
-            }
-        }
-    }
-
-@app.get("/getScene")
-async def get_scene():
-    """获取城市场景配置"""
-    import json
-    from pathlib import Path
-    
-    scene_path = Path(__file__).parent / "scenarios/presets/city_environment.json"
-    try:
-        with open(scene_path, "r", encoding="utf-8") as f:
-            scene_data = json.load(f)
-        return {
-            "status": "success",
-            "scene": scene_data
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"无法读取场景文件: {str(e)}"
-        }
 
 def simulate_client():
     """改进的客户端模拟"""
