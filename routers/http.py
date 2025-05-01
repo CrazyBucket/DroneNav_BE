@@ -1,61 +1,39 @@
-from fastapi import APIRouter
-from typing import Dict
-from datetime import datetime
+from uuid import uuid4
+from fastapi import APIRouter, BackgroundTasks
 import json
 from pathlib import Path
-from services.path_planner import plan_path
+
+from pydantic import BaseModel
 from models.drone_status import drone_status
+from models.drone_status import simulation_tasks
+
 
 router = APIRouter()
+class Coordinate(BaseModel):
+    x: float
+    y: float
+    z: float
+
+class SimulationRequest(BaseModel):
+    current: Coordinate
+    target: Coordinate
 
 @router.post("/start_simulation")
-async def start_simulation(coordinates: Dict[str, float]):
-    """
-    接收前端发送的坐标并启动仿真
-    - 参数: {"x": float, "y": float, "z": float}
-    - 返回: 确认信息和当前状态
-    """
-    # 更新目标位置
-    drone_status["target"] = coordinates
-    
-    # 生成路径
-    full_path = plan_path(
-        drone_status["current_position"],
-        drone_status["target"],
-        drone_status["speed"]
-    )
-    drone_status["path"] = full_path
-    
-    return {
-        "status": "success",
-        "message": "仿真已启动",
-        "target_position": drone_status["target"],
-        "path_points": len(full_path)
+async def start_simulation(request: SimulationRequest):
+    task_id = str(uuid4())
+    simulation_tasks[task_id] = {
+        "current_pos": (request.current.x, request.current.y, request.current.z),
+        "target_pos": (request.target.x, request.target.y, request.target.z),
+        "status": "pending"
     }
-
+    return {
+        "status": "started",
+        "task_id": task_id,
+        "ws_endpoint": f"/ws/trajectory/{task_id}"
+    }
 @router.options("/{path:path}")
 async def options_handler():
     return {"status": "ok"}
-
-@router.get("/test")
-async def test_interface():
-    """测试接口，返回基本状态信息"""
-    return {
-        "status": "success",
-        "timestamp": datetime.now().isoformat(),
-        "service_info": {
-            "service": "Drone Navigation Service",
-            "version": "1.0.0",
-            "status": "running",
-            "drone_status": {
-                "current_position": drone_status["current_position"],
-                "target_position": drone_status["target"],
-                "speed": drone_status["speed"],
-                "altitude": drone_status["altitude"],
-                "path_points": len(drone_status["path"])
-            }
-        }
-    }
 
 @router.get("/getScene")
 async def get_scene():

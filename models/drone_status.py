@@ -1,8 +1,8 @@
-# 无人机状态存储
+from typing import Dict, Any
+
 drone_status = {
     "current_position": {"x": 0.0, "y": 0.0, "z": 0.0},
-    "target": {"x": 10.0, "y": 10.0, "z": 5.0},
-    "speed": 5.0,  # m/s
-    "altitude": 5.0,
-    "path": []
 }
+
+# 存储所有仿真任务
+simulation_tasks: Dict[str, Dict[str, Any]] = {}

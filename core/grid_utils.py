@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def _calculate_grid_bounds(start, goal, obstacles, resolution):
     """正确计算三维网格边界"""
     all_points = [start, goal]
