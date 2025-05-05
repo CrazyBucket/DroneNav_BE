@@ -5,6 +5,8 @@ import asyncio
 import json
 from datetime import datetime
 from config.settings import DRONE_PHYSICAL_SIZE, GRID_RESOLUTION, UPDATE_INTERVAL
+from pathlib import Path
+import os
 
 from services.communication import DroneConnectionManager
 from services.path_planner import plan_path
@@ -42,15 +44,79 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str):
             await handle_ws_error(websocket, "任务已失败")
             return
 
-        # 异步计算路径
-        raw_path = await asyncio.to_thread(
-            plan_path,
-            current_pos=task["current_pos"],
-            target_pos=task["target_pos"],
-            scene_config={"obstacles": []},
-            drone_size=(0.5, 0.5, 0.5),
-        )
-        print(f"[DEBUG] 路径规划完成，点数: {len(raw_path)}")
+        # 智能场景选择 - 根据任务目标位置选择合适的场景
+        target_pos = task.get("target_pos", (0, 0, 0))
+        
+        # 根据坐标特征选择场景
+        if target_pos[0] > 0 and target_pos[0] < 10:
+            # 测试避障场景
+            scene_name = "test.json"
+            print(f"[INFO] 根据目标位置选择测试避障场景: {scene_name}")
+        else:
+            # 默认城市场景
+            scene_name = "city_environment.json"
+            print(f"[INFO] 根据目标位置选择城市环境场景: {scene_name}")
+        
+        # 加载场景配置文件
+        scene_path = Path(__file__).parent.parent / f"scenarios/presets/{scene_name}"
+        
+        if not os.path.exists(scene_path):
+            print(f"[WARN] 场景文件 {scene_name} 不存在，回退到默认场景")
+            scene_path = Path(__file__).parent.parent / "scenarios/presets/city_environment.json"
+        
+        try:
+            with open(scene_path, "r", encoding="utf-8") as f:
+                scene_config = json.load(f)
+                obstacle_count = len(scene_config.get('obstacles', []))
+                print(f"[DEBUG] 成功加载场景文件 {scene_path.name}，包含 {obstacle_count} 个障碍物")
+                
+                # 验证场景配置有效性
+                if obstacle_count == 0:
+                    print(f"[WARN] 场景文件 {scene_path.name} 不包含障碍物，请检查配置")
+        except Exception as e:
+            print(f"[ERROR] 加载场景文件失败: {str(e)}")
+            scene_config = {"obstacles": []}
+            await handle_ws_error(websocket, f"加载场景文件失败: {str(e)}")
+            return
+
+        # 设置路径规划的超时限制
+        path_planning_timeout = 20  # 降低到20秒超时限制
+        
+        try:
+            # 使用asyncio.wait_for添加超时控制
+            print(f"[DEBUG] 开始路径规划，起点={task['current_pos']}，终点={task['target_pos']}，超时限制: {path_planning_timeout}秒")
+            start_time = datetime.now()
+            
+            # 异步计算路径 - 使用加载的场景配置
+            raw_path = await asyncio.wait_for(
+                asyncio.to_thread(
+                    plan_path,
+                    current_pos=task["current_pos"],
+                    target_pos=task["target_pos"],
+                    scene_config=scene_config,
+                    drone_size=DRONE_PHYSICAL_SIZE,
+                ),
+                timeout=path_planning_timeout
+            )
+            
+            end_time = datetime.now()
+            elapsed = (end_time - start_time).total_seconds()
+            print(f"[DEBUG] 路径规划完成，用时: {elapsed:.2f}秒，点数: {len(raw_path)}")
+            
+            # 检查路径是否为空或点数太少
+            if not raw_path or len(raw_path) < 5:  # 降低最小点要求
+                raise ValueError(f"路径规划失败：生成的路径点数不足，仅有 {len(raw_path) if raw_path else 0} 个点")
+            
+        except asyncio.TimeoutError:
+            print(f"[ERROR] 路径规划超时，已超过{path_planning_timeout}秒限制")
+            await handle_ws_error(websocket, f"路径规划超时，已超过{path_planning_timeout}秒")
+            return
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] 路径规划失败: {str(e)}")
+            traceback.print_exc()  # 打印完整错误堆栈
+            await handle_ws_error(websocket, f"路径规划失败: {str(e)}")
+            return
 
         # 生成带时间戳的路径点
         path = [
@@ -69,15 +135,28 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str):
                 {"path": path, "status": "running", "total_points": len(path)}
             )
 
-        # 推送路径点
+        # 推送路径点，设置最大推送时间限制
+        max_simulation_time = 60  # 最长模拟时间60秒
+        start_time = datetime.now()
+        
         for idx, point in enumerate(path):
-            if simulation_tasks[task_id].get("status") == "cancelled":
+            # 检查是否超过最大模拟时间
+            elapsed = (datetime.now() - start_time).total_seconds()
+            if elapsed > max_simulation_time:
+                print(f"[WARN] 模拟超过最大时间限制({max_simulation_time}秒)，提前结束")
+                break
+                
+            if task_id in simulation_tasks and simulation_tasks[task_id].get("status") == "cancelled":
+                print(f"[INFO] 任务 {task_id} 已被取消")
                 break
 
             await send_position_update(websocket, idx, point, len(path))
             update_task_progress(task_id, idx)
             await asyncio.sleep(UPDATE_INTERVAL)
-            print(f"[DEBUG] 已推送第 {idx+1}/{len(path)} 个点")
+            
+            # 每50个点打印一次进度
+            if idx % 50 == 0:
+                print(f"[DEBUG] 已推送第 {idx+1}/{len(path)} 个点")
 
         await send_completion(websocket, task_id)
         print(f"[DEBUG] 任务 {task_id} 完成")
@@ -150,7 +229,8 @@ def update_task_progress(task_id: str, current_step: int):
 
 async def handle_ws_error(websocket: WebSocket, error: Exception):
     """统一错误处理"""
+    error_message = str(error)
     await websocket.send_json(
-        {"event_type": "ERROR", "error_code": "WS_500", "message": str(error)}
+        {"event_type": "ERROR", "error_code": "WS_500", "message": error_message}
     )
     await websocket.close(code=1011)

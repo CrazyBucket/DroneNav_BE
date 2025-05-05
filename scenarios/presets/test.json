@@ -1,0 +1,31 @@
+{
+  "name": "避障基础测试_XY轴立方体",
+  "coordinate_system": "ENU",
+  "obstacles": [
+    {
+      "id": "x_axis_blocker_1",
+      "type": "CUBE",
+      "position": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "rotation": {
+        "pitch": 0.0,
+        "yaw": 0.0,
+        "roll": 0.0
+      },
+      "metadata": {
+        "purpose": "x_axis_obstacle"
+      },
+      "feature": {
+        "size": [
+          4.0,
+          8.0,
+          4.0
+        ],
+        "color": "#FF0000"
+      }
+    }
+  ]
+}
