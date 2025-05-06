@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import numpy as np
 from services.path_planner import plan_path
 from models.drone_status import simulation_tasks
 
@@ -42,13 +43,38 @@ async def process_simulation_task(task_id: str):
         print(f"终点: {task['target_pos']}")
         print(f"障碍物数量: {len(scene_config['obstacles'])}")
         
+        # 从任务中获取路径密度参数，默认为0.3米（更合理的间距）
+        path_density = task.get("path_density", 0.3)
+        
+        # 根据路径长度动态调整默认密度
+        if path_density == 0.3:  # 如果是默认值，进行动态调整
+            # 计算起点和终点之间的直线距离
+            start_pos = np.array(task["current_pos"])
+            end_pos = np.array(task["target_pos"])
+            distance = np.linalg.norm(end_pos - start_pos)
+            
+            # 根据距离动态调整默认密度
+            if distance < 5:  # 短距离，使用较密的点
+                path_density = 0.2
+            elif distance < 20:  # 中等距离
+                path_density = 0.3 
+            elif distance < 50:  # 较长距离
+                path_density = 0.5
+            else:  # 超长距离
+                path_density = 1.0
+                
+            print(f"根据路径长度({distance:.2f}米)动态调整密度为: {path_density}米")
+            
+        print(f"使用路径点密度: {path_density}米")
+        
         path = await asyncio.to_thread(
             plan_path,
             current_pos=task["current_pos"],
             target_pos=task["target_pos"],
             scene_config=scene_config,  # 使用完整的场景配置
             drone_size=(0.5, 0.5, 0.5),
-            grid_resolution=0.5  # 设置合理的网格分辨率
+            grid_resolution=0.5,  # 设置合理的网格分辨率
+            path_density=path_density  # 传递路径密度参数
         )
         
         # 更新任务状态

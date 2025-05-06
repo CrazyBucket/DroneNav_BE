@@ -1,6 +1,6 @@
 # routers/websocket.py
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import Dict, List
+from typing import Dict, List, Optional
 import asyncio
 import json
 from datetime import datetime
@@ -23,15 +23,55 @@ task_lock = Lock()
 
 
 @router.websocket("/ws/trajectory/{task_id}")
-async def websocket_endpoint(websocket: WebSocket, task_id: str):
-    await drone_trajectory_ws(websocket, task_id)
-
-
-async def drone_trajectory_ws(websocket: WebSocket, task_id: str):
+async def websocket_endpoint(websocket: WebSocket, task_id: str, path_density: Optional[float] = None):
+    """WebSocket端点，处理无人机轨迹模拟
+    
+    参数:
+    - task_id: 任务唯一标识
+    - path_density: 可选的路径点密度参数(单位:米)，表示路径点之间的目标距离
+    """
     await websocket.accept()
-    await manager.connect(websocket, task_id)
+    await drone_trajectory_ws(websocket, task_id, path_density)
+
+
+async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: Optional[float] = None):
+    """处理无人机轨迹WebSocket连接
+    
+    参数:
+    - websocket: WebSocket连接
+    - task_id: 任务唯一标识
+    - path_density: 可选的路径点密度参数(单位:米)
+    """
     try:
-        print(f"[DEBUG] 开始处理任务 {task_id}")
+        print(f"[INFO] 收到轨迹请求，任务ID: {task_id}，路径密度: {path_density if path_density else '默认'}")
+        manager.connect(websocket, task_id)
+        
+        # 新增：处理WebSocket连接参数
+        try:
+            # 尝试从WebSocket查询参数获取path_density
+            query_params = dict(websocket.query_params)
+            if "path_density" in query_params and not path_density:
+                try:
+                    path_density = float(query_params["path_density"])
+                    print(f"[INFO] 从查询参数获取到路径密度: {path_density}米")
+                except ValueError:
+                    print(f"[WARN] 无效的路径密度值: {query_params['path_density']}")
+        except Exception as e:
+            print(f"[WARN] 处理WebSocket参数时出错: {str(e)}")
+
+        # 检查有效的路径密度范围
+        if path_density is not None:
+            if path_density < 0.01:
+                path_density = 0.01  # 最小密度，防止点数过多
+                print(f"[WARN] 路径密度过小，已调整为: {path_density}米")
+            elif path_density > 5.0:
+                path_density = 5.0  # 最大密度，防止点数过少
+                print(f"[WARN] 路径密度过大，已调整为: {path_density}米")
+
+        # 处理现有任务或创建新任务
+        if task_id == "new":
+            await handle_ws_error(websocket, "任务不存在")
+            return
 
         # 参数验证
         with task_lock:
@@ -88,13 +128,24 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str):
             start_time = datetime.now()
             
             # 异步计算路径 - 使用加载的场景配置
+            path_params = {
+                "current_pos": task["current_pos"],
+                "target_pos": task["target_pos"],
+                "scene_config": scene_config,
+                "drone_size": DRONE_PHYSICAL_SIZE,
+            }
+            
+            # 如果提供了路径密度参数，添加到规划参数中
+            if path_density is not None:
+                path_params["path_density"] = path_density
+                # 更新任务中的路径密度参数
+                simulation_tasks[task_id]["path_density"] = path_density
+                print(f"[INFO] 使用自定义路径密度: {path_density}米")
+            
             raw_path = await asyncio.wait_for(
                 asyncio.to_thread(
                     plan_path,
-                    current_pos=task["current_pos"],
-                    target_pos=task["target_pos"],
-                    scene_config=scene_config,
-                    drone_size=DRONE_PHYSICAL_SIZE,
+                    **path_params
                 ),
                 timeout=path_planning_timeout
             )

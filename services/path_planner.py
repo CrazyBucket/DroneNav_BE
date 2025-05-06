@@ -138,12 +138,80 @@ def is_position_safe(position, obstacles, drone_size, is_target=False):
     return True
 
 
+def adjust_path_density(path, target_density=0.2):
+    """
+    调整路径点的密度，使路径点之间的距离接近目标值
+    
+    参数:
+    - path: 原始路径点列表
+    - target_density: 目标点密度，表示相邻点之间的目标距离（米）
+    
+    返回:
+    - 调整密度后的路径点列表
+    """
+    if not path or len(path) < 2:
+        return path
+        
+    # 计算原始路径总长度
+    total_length = 0
+    for i in range(1, len(path)):
+        total_length += np.linalg.norm(np.array(path[i]) - np.array(path[i-1]))
+    
+    # 如果路径太短，直接返回
+    if total_length < target_density:
+        return path
+    
+    # 计算目标点数（保证至少有起点和终点）
+    target_points = max(2, int(total_length / target_density))
+    
+    # 如果目标点数接近当前点数，直接返回
+    if abs(target_points - len(path)) <= 3:
+        return path
+        
+    # 计算累积距离
+    cumulative_distance = [0]
+    for i in range(1, len(path)):
+        d = np.linalg.norm(np.array(path[i]) - np.array(path[i-1]))
+        cumulative_distance.append(cumulative_distance[-1] + d)
+    
+    # 均匀采样生成新的路径点
+    new_path = [path[0]]  # 保留起点
+    
+    # 计算采样距离点
+    sample_distances = np.linspace(0, total_length, target_points)[1:-1]  # 排除0和total_length
+    
+    # 根据采样距离生成点
+    for dist in sample_distances:
+        # 找到最接近的两个原始点
+        idx = np.searchsorted(cumulative_distance, dist) - 1
+        idx = max(0, min(idx, len(path) - 2))
+        
+        # 计算插值比例
+        segment_dist = cumulative_distance[idx+1] - cumulative_distance[idx]
+        if segment_dist > 0:
+            t = (dist - cumulative_distance[idx]) / segment_dist
+        else:
+            t = 0
+            
+        # 线性插值
+        p1 = np.array(path[idx])
+        p2 = np.array(path[idx+1])
+        new_point = tuple(p1 + t * (p2 - p1))
+        
+        new_path.append(new_point)
+    
+    new_path.append(path[-1])  # 保留终点
+    
+    print(f"路径密度调整：从{len(path)}个点调整为{len(new_path)}个点，目标间距：{target_density}米")
+    return new_path
+
 def plan_path(
     current_pos: Tuple[float, float, float],
     target_pos: Tuple[float, float, float],
     scene_config: Dict,
     drone_size: Tuple[float, float, float],
     grid_resolution: float = 0.5,
+    path_density: float = 0.1,  # 默认路径点密度（点间距）
 ) -> List[Tuple[float, float, float]]:
     """增强版路径规划算法，集成多种策略提供更平滑可靠的路径"""
     print("\n开始路径规划:")
@@ -159,10 +227,10 @@ def plan_path(
         
         # 生成三段式路径：上升-水平移动-下降
         distance = np.linalg.norm(np.array(target_pos) - np.array(current_pos))
-        total_points = max(50, int(distance / 0.2))  # 至少50个点
+        total_points = max(25, int(distance / 0.4))  # 增加点间距，减少总点数
         
         # 1. 上升阶段
-        ascent_points = max(20, int(total_points * 0.3))  # 至少20个点
+        ascent_points = max(10, int(total_points * 0.3))  # 减少上升点数
         direct_path = []
         for i in range(ascent_points):
             t = i / (ascent_points - 1)
@@ -174,7 +242,7 @@ def plan_path(
             direct_path.append(point)
         
         # 2. 水平移动阶段
-        cruise_points = max(20, int(total_points * 0.4))  # 至少20个点
+        cruise_points = max(10, int(total_points * 0.4))  # 减少巡航点数
         for i in range(cruise_points):
             t = i / (cruise_points - 1)
             point = (
@@ -185,7 +253,7 @@ def plan_path(
             direct_path.append(point)
         
         # 3. 下降阶段
-        descent_points = max(20, int(total_points * 0.3))  # 至少20个点
+        descent_points = max(10, int(total_points * 0.3))  # 减少下降点数
         for i in range(1, descent_points + 1):  # 从1开始避免重复点
             t = i / descent_points
             point = (
@@ -678,6 +746,10 @@ def plan_path(
         final_path = selected_strategy['path']
         
         print(f"\n选择最佳路径规划策略: {selected_strategy['name']}")
+        
+        # 调整路径点密度
+        final_path = adjust_path_density(final_path, path_density)
+        
         print(f"路径点数: {len(final_path)}")
         
         # 确保路径中的所有点都在安全高度以上
@@ -1103,8 +1175,8 @@ def analyze_path_difficulty(current_pos, target_pos, obstacles):
     # 计算路径复杂度
     path_complexity = {
         'cruising_height': cruising_height,  # 使用计算得到的巡航高度
-        'num_waypoints': min(50, max(20, int(direct_distance / 2))),
-        'sampling_density': min(0.5, max(0.2, direct_distance / 100)),
+        'num_waypoints': min(25, max(10, int(direct_distance / 4))),  # 减少路径点数
+        'sampling_density': min(1.0, max(0.4, direct_distance / 50)),  # 增加采样间距
         'use_adaptive_sampling': obstacle_density > 0.005,
         'vertical_first': True,  # 始终优先垂直上升
         'initial_climb_height': cruising_height  # 初始上升高度
