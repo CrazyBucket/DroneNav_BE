@@ -1,8 +1,9 @@
 from uuid import uuid4
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Query
 import json
 from pathlib import Path
 import asyncio
+import os
 
 from pydantic import BaseModel
 from models.drone_status import drone_status
@@ -36,11 +37,46 @@ async def start_simulation(request: SimulationRequest):
 async def options_handler():
     return {"status": "ok"}
 
+@router.get("/get_scenes")
+async def get_scene_list():
+    """获取所有可用场景的列表"""
+    scenarios_dir = Path(__file__).parent.parent / "scenarios/presets"
+    scene_files = [f for f in os.listdir(scenarios_dir) if f.endswith('.json')]
+    
+    scenes = []
+    for file_name in scene_files:
+        try:
+            with open(scenarios_dir / file_name, "r", encoding="utf-8") as f:
+                scene_data = json.load(f)
+                scenes.append({
+                    "id": file_name.replace('.json', ''),
+                    "name": scene_data.get("name", file_name),
+                    "description": scene_data.get("description", "无描述"),
+                    "object_count": len(scene_data.get("obstacles", [])),
+                })
+        except Exception as e:
+            print(f"读取场景文件 {file_name} 出错: {str(e)}")
+    
+    return {
+        "status": "success",
+        "scenes": scenes
+    }
+
 @router.get("/getScene")
-async def get_scene():
-    """获取城市场景配置"""
-    scene_path = Path(__file__).parent.parent / "scenarios/presets/city_environment.json"
-    # scene_path = Path(__file__).parent.parent / "scenarios/presets/test.json"
+async def get_scene(scene_id: str = Query(None, description="场景ID，不提供则使用默认场景")):
+    """获取特定场景配置，如果不指定场景ID则返回默认场景"""
+    if not scene_id:
+        # 默认场景
+        scene_id = "city_environment"
+    
+    scene_path = Path(__file__).parent.parent / f"scenarios/presets/{scene_id}.json"
+    
+    if not scene_path.exists():
+        return {
+            "status": "error",
+            "message": f"场景不存在: {scene_id}"
+        }
+    
     try:
         with open(scene_path, "r", encoding="utf-8") as f:
             scene_data = json.load(f)

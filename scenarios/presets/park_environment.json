@@ -1,0 +1,100 @@
+{
+    "name": "城市公园场景",
+    "coordinate_system": "ENU",
+    "obstacles": [
+        {
+            "id": "tree_1",
+            "type": "TREE",
+            "position": {
+                "x": 10.0,
+                "y": 15.0,
+                "z": 0
+            },
+            "rotation": {
+                "pitch": 0.0,
+                "yaw": 0,
+                "roll": 0.0
+            },
+            "metadata": {
+                "season": "spring"
+            },
+            "feature": {
+                "model": "tree_2",
+                "scale": 0.001
+            }
+        },
+        {
+            "id": "tree_2",
+            "type": "TREE",
+            "position": {
+                "x": -10.0,
+                "y": 15.0,
+                "z": 0
+            },
+            "rotation": {
+                "pitch": 0.0,
+                "yaw": 0,
+                "roll": 0.0
+            },
+            "metadata": {
+                "season": "spring"
+            },
+            "feature": {
+                "model": "tree_1",
+                "scale": 0.001
+            }
+        },
+        {
+            "id": "lake",
+            "type": "WATER",
+            "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -0.5
+            },
+            "rotation": {
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "roll": 0.0
+            },
+            "metadata": {
+                "purpose": "decorative",
+                "depth": 2.0
+            },
+            "feature": {
+                "shape": "ellipse",
+                "dimensions": [
+                    15.0,
+                    10.0
+                ],
+                "style": {
+                    "color": "#4FA4D4"
+                }
+            }
+        },
+        {
+            "id": "pavilion",
+            "type": "STRUCTURE",
+            "position": {
+                "x": 0.0,
+                "y": 20.0,
+                "z": 0.0
+            },
+            "rotation": {
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "roll": 0.0
+            },
+            "metadata": {
+                "purpose": "recreational"
+            },
+            "feature": {
+                "model": "pavilion_1",
+                "scale": 1.0,
+                "style": {
+                    "main_texture": "wood"
+                }
+            }
+        }
+    ]
+}

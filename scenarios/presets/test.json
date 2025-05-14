@@ -1,30 +1,221 @@
 {
-  "name": "避障基础测试_XY轴立方体",
+  "name": "无人机测试场景_100x100_v2",
   "coordinate_system": "ENU",
   "obstacles": [
     {
-      "id": "x_axis_blocker_1",
-      "type": "CUBE",
+      "id": "central_cluster_1",
+      "type": "BUILDING",
       "position": {
-        "x": 5.0,
-        "y": 0.0,
-        "z": 0.0
-      },
-      "rotation": {
-        "pitch": 0.0,
-        "yaw": 0.0,
-        "roll": 0.0
-      },
-      "metadata": {
-        "purpose": "x_axis_obstacle"
+        "x": -15,
+        "y": 15,
+        "z": 0
       },
       "feature": {
-        "size": [
-          4.0,
-          8.0,
-          4.0
+        "footprint": [
+          6,
+          6
         ],
-        "color": "#FF0000"
+        "height": 18,
+        "style": {
+          "main_texture": "building_1"
+        }
+      }
+    },
+    {
+      "id": "central_cluster_2",
+      "type": "BUILDING",
+      "position": {
+        "x": 15,
+        "y": 15,
+        "z": 0
+      },
+      "feature": {
+        "footprint": [
+          6,
+          6
+        ],
+        "height": 22,
+        "style": {
+          "main_texture": "building_2"
+        }
+      }
+    },
+    {
+      "id": "central_cluster_3",
+      "type": "BUILDING",
+      "position": {
+        "x": -15,
+        "y": -15,
+        "z": 0
+      },
+      "feature": {
+        "footprint": [
+          6,
+          6
+        ],
+        "height": 20,
+        "style": {
+          "main_texture": "building_3"
+        }
+      }
+    },
+    {
+      "id": "central_cluster_4",
+      "type": "BUILDING",
+      "position": {
+        "x": 15,
+        "y": -15,
+        "z": 0
+      },
+      "feature": {
+        "footprint": [
+          6,
+          6
+        ],
+        "height": 25,
+        "style": {
+          "main_texture": "building_4"
+        }
+      }
+    },
+    {
+      "id": "north_wing_1",
+      "type": "BUILDING",
+      "position": {
+        "x": -25,
+        "y": 35,
+        "z": 0
+      },
+      "feature": {
+        "footprint": [
+          8,
+          12
+        ],
+        "height": 28,
+        "style": {
+          "main_texture": "building_1"
+        }
+      }
+    },
+    {
+      "id": "north_wing_2",
+      "type": "BUILDING",
+      "position": {
+        "x": 0,
+        "y": 35,
+        "z": 0
+      },
+      "rotation": {
+        "yaw": 90
+      },
+      "feature": {
+        "footprint": [
+          10,
+          8
+        ],
+        "height": 32,
+        "style": {
+          "main_texture": "building_3"
+        }
+      }
+    },
+    {
+      "id": "north_wing_3",
+      "type": "BUILDING",
+      "position": {
+        "x": 25,
+        "y": 35,
+        "z": 0
+      },
+      "feature": {
+        "footprint": [
+          8,
+          12
+        ],
+        "height": 28,
+        "style": {
+          "main_texture": "building_1"
+        }
+      }
+    },
+    {
+      "id": "southeast_L1",
+      "type": "BUILDING",
+      "position": {
+        "x": 40,
+        "y": -30,
+        "z": 0
+      },
+      "rotation": {
+        "yaw": 30
+      },
+      "feature": {
+        "footprint": [
+          12,
+          6
+        ],
+        "height": 24,
+        "style": {
+          "main_texture": "building_2"
+        }
+      }
+    },
+    {
+      "id": "southeast_L2",
+      "type": "BUILDING",
+      "position": {
+        "x": 30,
+        "y": -40,
+        "z": 0
+      },
+      "rotation": {
+        "yaw": 30
+      },
+      "feature": {
+        "footprint": [
+          6,
+          12
+        ],
+        "height": 18,
+        "style": {
+          "main_texture": "building_4"
+        }
+      }
+    },
+    {
+      "id": "tree_line_1",
+      "type": "TREE",
+      "position": {
+        "x": 0,
+        "y": -25
+      },
+      "feature": {
+        "model": "tree_1",
+        "scale": 0.001
+      }
+    },
+    {
+      "id": "tree_line_2",
+      "type": "TREE",
+      "position": {
+        "x": 10,
+        "y": -25
+      },
+      "feature": {
+        "model": "tree_1",
+        "scale": 0.001
+      }
+    },
+    {
+      "id": "tree_line_3",
+      "type": "TREE",
+      "position": {
+        "x": -10,
+        "y": -25
+      },
+      "feature": {
+        "model": "tree_1",
+        "scale": 0.001
       }
     }
   ]
