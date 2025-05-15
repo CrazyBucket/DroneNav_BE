@@ -187,30 +187,106 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: 
             )
 
         # 推送路径点，设置最大推送时间限制
-        max_simulation_time = 60  # 最长模拟时间60秒
+        max_simulation_time = 180  # 增加最长模拟时间到180秒
         start_time = datetime.now()
+        point_batch_size = 5  # 每次一起发送5个点
+        point_batch = []
         
-        for idx, point in enumerate(path):
-            # 检查是否超过最大模拟时间
-            elapsed = (datetime.now() - start_time).total_seconds()
-            if elapsed > max_simulation_time:
-                print(f"[WARN] 模拟超过最大时间限制({max_simulation_time}秒)，提前结束")
-                break
+        try:
+            for idx, point in enumerate(path):
+                # 检查是否超过最大模拟时间
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if elapsed > max_simulation_time:
+                    print(f"[WARN] 模拟超过最大时间限制({max_simulation_time}秒)，提前结束")
+                    break
+                    
+                if task_id in simulation_tasks and simulation_tasks[task_id].get("status") == "cancelled":
+                    print(f"[INFO] 任务 {task_id} 已被取消")
+                    break
+
+                # 添加到当前批次
+                point_batch.append(point)
                 
-            if task_id in simulation_tasks and simulation_tasks[task_id].get("status") == "cancelled":
-                print(f"[INFO] 任务 {task_id} 已被取消")
-                break
+                # 更新任务进度
+                update_task_progress(task_id, idx)
+                
+                # 当积累了一批点或达到最后一个点时发送
+                if len(point_batch) >= point_batch_size or idx == len(path) - 1:
+                    try:
+                        # 为每个点添加索引信息
+                        for batch_idx, p in enumerate(point_batch):
+                            current_idx = idx - len(point_batch) + batch_idx + 1
+                            await send_position_update(websocket, current_idx, p, len(path))
+                        
+                        # 清空批次
+                        point_batch = []
+                        
+                        # 根据时间和进度动态调整延迟
+                        progress_ratio = (idx + 1) / len(path)
+                        if progress_ratio < 0.2:
+                            # 开始阶段快一些
+                            delay = UPDATE_INTERVAL * 0.7
+                        elif progress_ratio > 0.8:
+                            # 结束阶段快一些
+                            delay = UPDATE_INTERVAL * 0.7
+                        else:
+                            # 中间保持正常速度
+                            delay = UPDATE_INTERVAL
+                            
+                        # 确保最小延迟以避免前端过载
+                        await asyncio.sleep(max(0.02, delay))
+                        
+                        # 每50个点打印一次进度
+                        if idx % 50 == 0:
+                            elapsed_since_start = (datetime.now() - start_time).total_seconds()
+                            print(f"[DEBUG] 已推送第 {idx+1}/{len(path)} 个点，耗时: {elapsed_since_start:.2f}秒")
+                            
+                    except ConnectionError as e:
+                        print(f"[ERROR] 连接中断: {str(e)}")
+                        raise
+                    except Exception as e:
+                        print(f"[ERROR] 发送位置更新失败: {str(e)}")
+                        # 如果某个批次失败，继续尝试下一个批次
+                        point_batch = []
 
-            await send_position_update(websocket, idx, point, len(path))
-            update_task_progress(task_id, idx)
-            await asyncio.sleep(UPDATE_INTERVAL)
+            # 确保发送完成信号
+            try:
+                # 发送完成信号
+                await send_completion(websocket, task_id)
+                print(f"[DEBUG] 任务 {task_id} 完成，总推送点数: {len(path)}，总耗时: {(datetime.now() - start_time).total_seconds():.2f}秒")
+            except Exception as e:
+                print(f"[WARN] 发送完成信号失败: {str(e)}")
+                
+            # 更新任务状态为已完成
+            with task_lock:
+                if task_id in simulation_tasks:
+                    simulation_tasks[task_id]["status"] = "completed"
+                    simulation_tasks[task_id]["completed_at"] = datetime.now().isoformat()
+        
+        except asyncio.CancelledError:
+            print(f"[WARN] 任务 {task_id} 被取消")
+            # 更新任务状态为已取消
+            with task_lock:
+                if task_id in simulation_tasks:
+                    simulation_tasks[task_id]["status"] = "cancelled"
+            raise  # 重新抛出取消异常
+        
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] 推送路径点时出错: {str(e)}")
+            traceback.print_exc()  # 打印完整错误堆栈
             
-            # 每50个点打印一次进度
-            if idx % 50 == 0:
-                print(f"[DEBUG] 已推送第 {idx+1}/{len(path)} 个点")
-
-        await send_completion(websocket, task_id)
-        print(f"[DEBUG] 任务 {task_id} 完成")
+            # 在出错时，尝试更新任务状态
+            with task_lock:
+                if task_id in simulation_tasks:
+                    simulation_tasks[task_id]["status"] = "error"
+                    simulation_tasks[task_id]["error"] = f"推送路径点时出错: {str(e)}"
+            
+            # 尝试发送错误消息
+            try:
+                await handle_ws_error(websocket, e)
+            except:
+                pass  # 忽略错误处理中的错误
 
     except Exception as e:
         import traceback
