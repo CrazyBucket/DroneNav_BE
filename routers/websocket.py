@@ -87,22 +87,41 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: 
         # 智能场景选择 - 根据任务目标位置选择合适的场景
         target_pos = task.get("target_pos", (0, 0, 0))
         
-        # 根据坐标特征选择场景
-        if target_pos[0] > 0 and target_pos[0] < 10:
-            # 测试避障场景
-            scene_name = "test.json"
-            print(f"[INFO] 根据目标位置选择测试避障场景: {scene_name}")
+        # 强制从任务中获取场景ID
+        scene_id = task.get("scene_id")
+        print(f"[DEBUG] 任务信息: {task}")
+        print(f"[DEBUG] 从任务中获取场景ID: {scene_id}")
+        
+        # 默认场景文件名
+        default_scene = "city_environment.json"
+        
+        if scene_id:
+            # 直接使用任务中传入的场景ID，确保添加.json扩展名
+            scene_name = f"{scene_id}.json" if not scene_id.endswith(".json") else scene_id
+            print(f"[INFO] ✅ 使用指定场景: ID={scene_id}, 文件={scene_name}")
         else:
-            # 默认城市场景
-            scene_name = "city_environment.json"
-            print(f"[INFO] 根据目标位置选择城市环境场景: {scene_name}")
+            # 没有指定场景ID，使用默认场景
+            scene_name = default_scene
+            print(f"[INFO] ⚠️ 未指定场景ID，使用默认场景: {scene_name}")
         
         # 加载场景配置文件
         scene_path = Path(__file__).parent.parent / f"scenarios/presets/{scene_name}"
+        print(f"[DEBUG] 场景文件路径: {scene_path}")
         
+        # 检查场景文件是否存在
         if not os.path.exists(scene_path):
-            print(f"[WARN] 场景文件 {scene_name} 不存在，回退到默认场景")
-            scene_path = Path(__file__).parent.parent / "scenarios/presets/city_environment.json"
+            print(f"[WARN] ❌ 场景文件 {scene_name} 不存在，回退到默认场景")
+            scene_path = Path(__file__).parent.parent / f"scenarios/presets/{default_scene}"
+            scene_name = default_scene
+            
+            # 再次检查默认场景是否存在
+            if not os.path.exists(scene_path):
+                error_message = f"默认场景文件 {default_scene} 也不存在！无法继续仿真！"
+                print(f"[ERROR] {error_message}")
+                await handle_ws_error(websocket, error_message)
+                return
+                
+            print(f"[INFO] 已切换到默认场景: {scene_name}")
         
         try:
             with open(scene_path, "r", encoding="utf-8") as f:
@@ -124,7 +143,7 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: 
         
         try:
             # 使用asyncio.wait_for添加超时控制
-            print(f"[DEBUG] 开始路径规划，起点={task['current_pos']}，终点={task['target_pos']}，超时限制: {path_planning_timeout}秒")
+            print(f"[DEBUG] 开始路径规划，起点={task['current_pos']}，终点={task['target_pos']}，场景={scene_name}，超时限制: {path_planning_timeout}秒")
             start_time = datetime.now()
             
             # 异步计算路径 - 使用加载的场景配置
@@ -152,7 +171,7 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: 
             
             end_time = datetime.now()
             elapsed = (end_time - start_time).total_seconds()
-            print(f"[DEBUG] 路径规划完成，用时: {elapsed:.2f}秒，点数: {len(raw_path)}")
+            print(f"[DEBUG] 路径规划完成，场景={scene_name}，用时: {elapsed:.2f}秒，点数: {len(raw_path)}")
             
             # 检查路径是否为空或点数太少
             if not raw_path or len(raw_path) < 5:  # 降低最小点要求

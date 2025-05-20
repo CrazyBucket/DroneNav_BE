@@ -19,15 +19,28 @@ class Coordinate(BaseModel):
 class SimulationRequest(BaseModel):
     current: Coordinate
     target: Coordinate
+    scene_id: str = None  # 添加场景ID字段，默认为None
 
 @router.post("/start_simulation")
 async def start_simulation(request: SimulationRequest):
     task_id = str(uuid4())
+    
+    # 打印接收到的请求参数
+    scene_id = request.scene_id
+    current_pos = (request.current.x, request.current.y, request.current.z)
+    target_pos = (request.target.x, request.target.y, request.target.z)
+    print(f"[INFO] 接收到仿真请求: 起点={current_pos}, 终点={target_pos}, 场景ID={scene_id or '未提供'}")
+    
+    # 存储任务信息
     simulation_tasks[task_id] = {
-        "current_pos": (request.current.x, request.current.y, request.current.z),
-        "target_pos": (request.target.x, request.target.y, request.target.z),
-        "status": "pending"
+        "current_pos": current_pos,
+        "target_pos": target_pos,
+        "status": "pending",
+        "scene_id": scene_id  # 存储场景ID
     }
+    
+    print(f"[INFO] 创建仿真任务: ID={task_id}, 场景ID={scene_id or '默认'}")
+    
     return {
         "status": "started",
         "task_id": task_id,
