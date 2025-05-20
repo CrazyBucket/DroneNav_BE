@@ -10,6 +10,22 @@ import time
 
 # 全局变量，存储当前正在处理的障碍物
 _current_obstacles = []
+_current_scene_config = None
+_current_planning_state = {
+    "is_initialized": False,
+    "cache": {}
+}
+
+def reset_planner_state():
+    """重置路径规划器的状态"""
+    global _current_obstacles, _current_scene_config, _current_planning_state
+    _current_obstacles = []
+    _current_scene_config = None
+    _current_planning_state = {
+        "is_initialized": False,
+        "cache": {}
+    }
+    print("[PathPlanner] 状态已重置")
 
 def get_current_obstacles():
     """返回当前正在处理的障碍物列表，供A*算法使用"""
@@ -214,6 +230,15 @@ def plan_path(
     path_density: float = 0.1,  # 默认路径点密度（点间距）
 ) -> List[Tuple[float, float, float]]:
     """增强版路径规划算法，集成多种策略提供更平滑可靠的路径"""
+    # 重置规划器状态
+    reset_planner_state()
+    
+    # 更新当前场景配置
+    global _current_scene_config
+    _current_scene_config = scene_config
+    
+    print(f"[PathPlanner] 开始规划路径: 起点={current_pos}, 终点={target_pos}")
+    
     print("\n开始路径规划:")
     print(f"起点坐标: {current_pos}")
     print(f"终点坐标: {target_pos}")

@@ -9,7 +9,7 @@ from pathlib import Path
 import os
 
 from services.communication import DroneConnectionManager
-from services.path_planner import plan_path
+from services.path_planner import plan_path, reset_planner_state
 from models.drone_status import simulation_tasks
 from threading import Lock
 from uuid import uuid4
@@ -30,6 +30,9 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str, path_density: O
     - task_id: 任务唯一标识
     - path_density: 可选的路径点密度参数(单位:米)，表示路径点之间的目标距离
     """
+    # 重置规划器状态
+    reset_planner_state()
+    
     await websocket.accept()
     await drone_trajectory_ws(websocket, task_id, path_density)
 
@@ -45,6 +48,9 @@ async def drone_trajectory_ws(websocket: WebSocket, task_id: str, path_density: 
     try:
         print(f"[INFO] 收到轨迹请求，任务ID: {task_id}，路径密度: {path_density if path_density else '默认'}")
         manager.connect(websocket, task_id)
+        
+        # 确保状态已重置
+        reset_planner_state()
         
         # 新增：处理WebSocket连接参数
         try:
