@@ -103,13 +103,6 @@ async def get_scene(scene_id: str = Query(None, description="场景ID，不提�
             "message": f"无法读取场景文件: {str(e)}"
         }
 
-async def plan_path(current_pos, target_pos, scene_config, drone_size):
-    # This function is assumed to exist and be imported from a module
-    # It's called with the parameters from the task
-    # The implementation of this function is not provided in the original file or the code block
-    # It's assumed to exist and return a path
-    pass
-
 @router.post("/plan_path")
 async def plan_path_endpoint(task_id: str):
     if task_id not in simulation_tasks:
