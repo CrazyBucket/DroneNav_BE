@@ -19,18 +19,13 @@ app.include_router(websocket_router)
 app.include_router(http_router)
 app.include_router(auth_router)  # 添加认证路由
 
+# 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源
+    allow_origins=["https://localhost:5173"],  # 前端开发服务器地址
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # 明确允许GET方法
-    allow_headers=[
-        "x-request-time",  # 显式允许自定义头
-        "content-type",    # 常规头仍需列出
-        "authorization",
-        "x-device-fingerprint",  # 添加设备指纹头
-        "*"                # 保留通配符确保兼容
-    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 创建SSL上下文

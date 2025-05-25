@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, validator
 import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+import jwt
+import secrets
 
 from models.user import (
     User, create_user, get_user_by_username, get_user_by_email, get_user_by_id,
-    users_db
+    users_db, hash_password
 )
 from core.auth import (
-    create_access_token, create_refresh_token, verify_refresh_token, 
+    create_access_token, create_refresh_token, verify_refresh_token, decode_token,
     get_current_user_id, ACCESS_TOKEN_EXPIRE_MINUTES
 )
 
@@ -49,11 +52,17 @@ class TokenResponse(BaseModel):
 class RefreshRequest(BaseModel):
     refresh_token: str
 
+class VerificationResponse(BaseModel):
+    message: str
+    temp_token: Optional[str] = None
+    exists: bool = True
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
 class PasswordResetConfirm(BaseModel):
-    token: str
+    temp_token: str
+    verification_code: str
     new_password: str = Field(..., min_length=8)
     
     @validator('new_password')
@@ -78,6 +87,9 @@ class UserResponse(BaseModel):
 
 # 模拟密码重置令牌存储
 password_reset_tokens = {}
+
+# 模拟验证码存储
+verification_codes = {}
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate):
@@ -168,50 +180,73 @@ async def refresh_token(refresh_req: RefreshRequest):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-@router.post("/password-reset/request")
+@router.post("/password-reset/request", response_model=VerificationResponse)
 async def request_password_reset(req: PasswordResetRequest):
     """
-    请求密码重置
+    请求密码重置，生成验证码
     """
     user = get_user_by_email(req.email)
     if not user:
-        # 即使用户不存在也返回成功，以防止用户枚举
-        return {"message": "如果该邮箱存在，重置链接将发送到您的邮箱"}
+        return VerificationResponse(
+            message="该邮箱未注册",
+            exists=False
+        )
     
-    # 创建密码重置令牌
-    reset_token = create_access_token(
+    # 生成6位数字验证码
+    verification_code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    
+    # 生成临时令牌
+    temp_token = create_access_token(
         {"sub": user.user_id, "purpose": "password_reset"},
-        expires_delta=timedelta(hours=1)
+        expires_delta=timedelta(minutes=10)
     )
     
-    # 存储令牌（实际应用中应发送邮件）
-    password_reset_tokens[user.user_id] = reset_token
-    
-    # 在实际应用中，这里应该发送包含重置链接的电子邮件
-    # 这里仅返回令牌用于测试
-    return {
-        "message": "如果该邮箱存在，重置链接将发送到您的邮箱",
-        "reset_token": reset_token  # 仅用于测试，实际应用中不应返回
+    # 存储验证信息
+    verification_codes[temp_token] = {
+        "code": verification_code,
+        "user_id": user.user_id,
+        "expires_at": datetime.utcnow() + timedelta(minutes=10)
     }
+    
+    # 在实际应用中，这里应该发送验证码到用户邮箱
+    # 这里为了测试，直接返回验证码
+    return VerificationResponse(
+        message=f"验证码已发送到邮箱（测试环境验证码：{verification_code}）",
+        temp_token=temp_token,
+        exists=True
+    )
 
 @router.post("/password-reset/confirm")
 async def confirm_password_reset(req: PasswordResetConfirm):
     """
-    确认密码重置
+    验证验证码并重置密码
     """
     try:
-        payload = verify_refresh_token(req.token)
-        user_id = payload.get("sub")
-        purpose = payload.get("purpose")
-        
-        if not user_id or purpose != "password_reset" or user_id not in password_reset_tokens:
+        # 获取验证信息
+        verification_info = verification_codes.get(req.temp_token)
+        if not verification_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="无效的重置令牌"
+                detail="无效的临时令牌"
+            )
+        
+        # 检查是否过期
+        if datetime.utcnow() > verification_info["expires_at"]:
+            del verification_codes[req.temp_token]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码已过期"
+            )
+        
+        # 验证验证码
+        if req.verification_code != verification_info["code"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码错误"
             )
         
         # 获取用户并更新密码
-        user = get_user_by_id(user_id)
+        user = get_user_by_id(verification_info["user_id"])
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -219,13 +254,15 @@ async def confirm_password_reset(req: PasswordResetConfirm):
             )
         
         # 更新密码
-        user.password_hash, user.salt = User.hash_password(req.new_password)
-        users_db[user_id] = user.to_dict(include_sensitive=True)
+        user.password_hash, user.salt = hash_password(req.new_password)
+        users_db[user.user_id] = user.to_dict(include_sensitive=True)
         
-        # 删除重置令牌
-        del password_reset_tokens[user_id]
+        # 清理验证信息
+        del verification_codes[req.temp_token]
         
         return {"message": "密码已成功重置"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
